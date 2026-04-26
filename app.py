@@ -15,12 +15,14 @@ from config import (
 from processing import (
     load_file, peek_file,
     combine, apply_filters, _empty_diag,
+    load_files_combined,
     kpi_summary, brand_ratings_compare,
     brand_city_matrix, zone_brand_matrix,
     brand_sentiment, low_rating_comments,
     sku_impact_insights, top_bottom_skus,
     REQUIRED_FIELDS, ALL_FIELDS, _auto_detect_columns,
 )
+import database
 
 FIELD_LABELS = {
     "brand":   "Brand",
@@ -42,6 +44,14 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
+
+# Initialise persistent storage
+database.init_db()
+
+# Track which (platform, file_name, file_size) combos were saved
+# to DB this session — avoids re-saving on every Streamlit rerun.
+if "db_saved" not in st.session_state:
+    st.session_state.db_saved = set()
 
 
 st.markdown("""
@@ -389,6 +399,139 @@ def render_file_rating_summary(df, diags):
         st.markdown(f"<div style='margin-top:12px'>{cards_html}</div>", unsafe_allow_html=True)
 
 
+# ---------------------------------------------------------------
+# DB helpers
+# ---------------------------------------------------------------
+
+def _save_to_db(file_objs, platform, df, diags):
+    """Persist newly-uploaded files to SQLite (skips already-saved ones).
+
+    Returns True if anything was newly saved (so caller can know DB changed).
+    """
+    saved_any = False
+    for i, f in enumerate(file_objs or []):
+        key = (platform, f.name, f.size)
+        if key in st.session_state.db_saved:
+            continue
+
+        # Pull per-file metadata from the processing result
+        rows = 0
+        avg_r = None
+        d_min = d_max = None
+
+        # The diag for this file sits at the same index as the file object
+        inner_name = f.name
+        if i < len(diags or []):
+            d = diags[i]
+            inner_name = d.get("file_name") or f.name
+            rows = d.get("rows_final", 0)
+
+        if df is not None and not df.empty and "source_file" in df.columns:
+            fdf = df[df["source_file"] == inner_name]
+            if not fdf.empty:
+                avg_r = float(fdf["rating"].mean())
+                dates = fdf["date"].dropna()
+                if len(dates):
+                    d_min = dates.min().date()
+                    d_max = dates.max().date()
+
+        database.save_file(platform, f.name, f.getvalue(), rows, avg_r, d_min, d_max)
+        st.session_state.db_saved.add(key)
+        saved_any = True
+
+    return saved_any
+
+
+def _render_stored_files(platform, key_prefix):
+    """Show the list of DB-stored files with delete buttons."""
+    stored = database.list_files(platform)
+
+    color = "#DC2626" if platform == "Zomato" else "#F97316"
+    badge_cls = "zomato" if platform == "Zomato" else "swiggy"
+
+    if not stored:
+        st.markdown(
+            "<div style='color:#9CA3AF;font-size:12px;padding:10px 0'>"
+            "No files stored yet — upload files above to persist them across sessions.</div>",
+            unsafe_allow_html=True,
+        )
+        return
+
+    st.markdown(
+        f"<div style='font-size:11px;font-weight:700;color:{color};"
+        f"text-transform:uppercase;letter-spacing:1.2px;margin-bottom:10px'>"
+        f"📦 {len(stored)} file(s) in storage</div>",
+        unsafe_allow_html=True,
+    )
+
+    for rec in stored:
+        c_info, c_rating, c_del = st.columns([4, 3, 1])
+
+        fname = rec["file_name"]
+        short_name = (fname[:38] + "…") if len(fname) > 40 else fname
+        size_kb = (rec["file_size"] or 0) / 1024
+
+        with c_info:
+            st.markdown(
+                f"<div style='font-weight:700;font-size:13px;color:#111827'>{short_name}</div>"
+                f"<div style='font-size:11px;color:#9CA3AF;margin-top:2px'>"
+                f"Saved {rec['uploaded_at'][:16]} &nbsp;·&nbsp; {size_kb:.0f} KB</div>",
+                unsafe_allow_html=True,
+            )
+
+        with c_rating:
+            if rec["avg_rating"]:
+                rc = rating_color(rec["avg_rating"])
+                dr = ""
+                if rec["date_min"] and rec["date_max"]:
+                    dr = f"&nbsp;·&nbsp;{rec['date_min']} → {rec['date_max']}"
+                st.markdown(
+                    f"<span style='background:{rc['bg']};color:{rc['text']};"
+                    f"border:1px solid {rc['border']};border-radius:6px;"
+                    f"padding:3px 8px;font-weight:800;font-size:13px'>"
+                    f"{rec['avg_rating']:.2f}★</span>"
+                    f"<span style='font-size:11px;color:#9CA3AF;margin-left:8px'>"
+                    f"{rec['rows_loaded']:,} rows{dr}</span>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    f"<span style='font-size:12px;color:#9CA3AF'>{rec['rows_loaded']:,} rows</span>",
+                    unsafe_allow_html=True,
+                )
+
+        with c_del:
+            if st.button("🗑️", key=f"{key_prefix}_del_{rec['id']}",
+                         help="Remove from database"):
+                database.delete_file(rec["id"])
+                st.session_state.db_saved.discard(
+                    (platform, rec["file_name"], rec.get("file_size", 0))
+                )
+                st.rerun()
+
+        st.markdown(
+            "<hr style='border:none;border-top:1px solid #F3F4F6;margin:4px 0'>",
+            unsafe_allow_html=True,
+        )
+
+
+@st.cache_data(show_spinner="Loading stored data…")
+def _load_db_platform(platform, db_ver):
+    """Load all stored files for a platform from SQLite.
+
+    `db_ver` is included in the cache key so the result is
+    automatically invalidated whenever files are added or removed.
+    """
+    stored = database.list_files(platform)
+    if not stored:
+        return None, []
+    file_objs = [database.get_file_bytes(r["id"]) for r in stored]
+    file_objs = [f for f in file_objs if f is not None]
+    if not file_objs:
+        return None, []
+    return load_files_combined(file_objs, platform)
+
+
 def render_diagnostics(diag):
     if not diag or not diag.get("file_name"):
         return
@@ -431,23 +574,32 @@ def render_diagnostics(diag):
 # ==============================================================
 # 1. FILE MANAGER (top of page, collapsible)
 # ==============================================================
-# Determine if we already have data so we can collapse the file panel
-data_loaded = ("master_df" in st.session_state and st.session_state.master_df is not None
-               and not st.session_state.master_df.empty)
+# Collapse the panel automatically once data is available
+_has_db_data = bool(database.list_files())
+data_loaded = (
+    ("master_df" in st.session_state
+     and st.session_state.master_df is not None
+     and not st.session_state.master_df.empty)
+    or _has_db_data
+)
 
+# These are set either from session uploads or DB loading below
 zomato_df, zomato_diags = None, []
 swiggy_df, swiggy_diags = None, []
+z_files, s_files = [], []
 
 with st.expander("📁  **Data sources** — upload Zomato & Swiggy files",
                  expanded=not data_loaded):
 
     z_tab, s_tab = st.tabs(["🔴  Zomato", "🟠  Swiggy"])
 
+    # ── ZOMATO TAB ──────────────────────────────────────────
     with z_tab:
         st.markdown(
             "<div style='font-size:12px;color:#6B7280;margin-bottom:8px'>"
             "Upload one or more Zomato export files (xlsx, csv, zip). "
-            "Duplicate order IDs across files are automatically de-duplicated.</div>",
+            "Files are <b>automatically saved to the local database</b> so "
+            "data persists even if you refresh or close the app.</div>",
             unsafe_allow_html=True,
         )
         z_files = st.file_uploader(
@@ -459,17 +611,29 @@ with st.expander("📁  **Data sources** — upload Zomato & Swiggy files",
         )
         if z_files:
             with st.expander("⚙️ Sheet & column mapping", expanded=False):
-                zomato_df, zomato_diags = load_platform_files(z_files, "Zomato")
-            if zomato_df is not None and not zomato_df.empty:
-                render_file_rating_summary(zomato_df, zomato_diags)
-            elif not zomato_df is None:
-                render_file_rating_summary(None, zomato_diags)
+                _session_z_df, _session_z_diags = load_platform_files(z_files, "Zomato")
+            # Save to DB (skips files already saved this session)
+            _save_to_db(z_files, "Zomato", _session_z_df, _session_z_diags)
+            if _session_z_df is not None and not _session_z_df.empty:
+                render_file_rating_summary(_session_z_df, _session_z_diags)
+            elif _session_z_df is None:
+                render_file_rating_summary(None, _session_z_diags)
 
+        st.markdown(
+            "<div style='font-size:11px;font-weight:700;color:#6B7280;"
+            "text-transform:uppercase;letter-spacing:1.2px;"
+            "margin:16px 0 0'>Stored files</div>",
+            unsafe_allow_html=True,
+        )
+        _render_stored_files("Zomato", "z")
+
+    # ── SWIGGY TAB ──────────────────────────────────────────
     with s_tab:
         st.markdown(
             "<div style='font-size:12px;color:#6B7280;margin-bottom:8px'>"
             "Upload one or more Swiggy export files (xlsx, csv, zip). "
-            "Duplicate order IDs across files are automatically de-duplicated.</div>",
+            "Files are <b>automatically saved to the local database</b> so "
+            "data persists even if you refresh or close the app.</div>",
             unsafe_allow_html=True,
         )
         s_files = st.file_uploader(
@@ -481,11 +645,29 @@ with st.expander("📁  **Data sources** — upload Zomato & Swiggy files",
         )
         if s_files:
             with st.expander("⚙️ Sheet & column mapping", expanded=False):
-                swiggy_df, swiggy_diags = load_platform_files(s_files, "Swiggy")
-            if swiggy_df is not None and not swiggy_df.empty:
-                render_file_rating_summary(swiggy_df, swiggy_diags)
-            elif not swiggy_df is None:
-                render_file_rating_summary(None, swiggy_diags)
+                _session_s_df, _session_s_diags = load_platform_files(s_files, "Swiggy")
+            _save_to_db(s_files, "Swiggy", _session_s_df, _session_s_diags)
+            if _session_s_df is not None and not _session_s_df.empty:
+                render_file_rating_summary(_session_s_df, _session_s_diags)
+            elif _session_s_df is None:
+                render_file_rating_summary(None, _session_s_diags)
+
+        st.markdown(
+            "<div style='font-size:11px;font-weight:700;color:#6B7280;"
+            "text-transform:uppercase;letter-spacing:1.2px;"
+            "margin:16px 0 0'>Stored files</div>",
+            unsafe_allow_html=True,
+        )
+        _render_stored_files("Swiggy", "s")
+
+# --------------------------------------------------------------
+# Load dashboard data — always from DB so data survives refreshes.
+# db_version() is re-evaluated AFTER the expander, so any saves
+# done inside are already reflected in the new token.
+# --------------------------------------------------------------
+_db_ver = database.db_version()
+zomato_df, zomato_diags = _load_db_platform("Zomato", _db_ver)
+swiggy_df, swiggy_diags = _load_db_platform("Swiggy", _db_ver)
 
 master = combine(zomato_df, swiggy_df)
 st.session_state.master_df = master
