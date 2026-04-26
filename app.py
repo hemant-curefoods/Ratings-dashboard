@@ -326,6 +326,69 @@ def load_platform_files(file_objs, platform_label):
     return combined, diags
 
 
+def render_file_rating_summary(df, diags):
+    """Show compact per-file rating cards after processing."""
+    if df is None or df.empty or not diags:
+        return
+
+    cards_html = ""
+    for diag in diags:
+        fname = diag.get("file_name")
+        if not fname:
+            continue
+        err = diag.get("error")
+        rows_final = diag.get("rows_final", 0)
+
+        if err or rows_final == 0:
+            cards_html += (
+                f"<div style='background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;"
+                f"padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px'>"
+                f"<span style='font-size:18px'>❌</span>"
+                f"<div><div style='font-weight:700;font-size:12px;color:#DC2626'>{fname}</div>"
+                f"<div style='font-size:11px;color:#EF4444;margin-top:2px'>"
+                f"{err[:80] if err else '0 rows loaded'}</div></div></div>"
+            )
+            continue
+
+        file_df = df[df["source_file"] == fname] if "source_file" in df.columns else df
+        if file_df.empty:
+            continue
+
+        avg_r = file_df["rating"].mean()
+        count = len(file_df)
+        dates = file_df["date"].dropna()
+        if len(dates):
+            d_min, d_max = dates.min(), dates.max()
+            months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+            if d_min.month == d_max.month and d_min.year == d_max.year:
+                date_str = f"{months[d_min.month-1]} {d_min.day}–{d_max.day}, {d_max.year}"
+            else:
+                date_str = f"{months[d_min.month-1]} {d_min.day} – {months[d_max.month-1]} {d_max.day}, {d_max.year}"
+        else:
+            date_str = "No dates"
+
+        rc = rating_color(avg_r)
+        cards_html += (
+            f"<div style='background:#F9FAFB;border:1px solid #E5E7EB;border-radius:10px;"
+            f"padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:14px'>"
+            f"<div style='background:{rc['bg']};color:{rc['text']};border:1px solid {rc['border']};"
+            f"border-radius:8px;padding:6px 12px;font-size:18px;font-weight:900;white-space:nowrap'>"
+            f"{avg_r:.2f}★</div>"
+            f"<div style='flex:1;min-width:0'>"
+            f"<div style='font-weight:700;font-size:12px;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>{fname}</div>"
+            f"<div style='font-size:11px;color:#6B7280;margin-top:3px'>"
+            f"<b style='color:#374151'>{count:,}</b> feedbacks · {date_str}</div>"
+            f"</div>"
+            f"<div style='text-align:right;white-space:nowrap'>"
+            f"<div style='font-size:10px;color:#9CA3AF;text-transform:uppercase;letter-spacing:1px'>Avg Rating</div>"
+            f"<div style='font-size:20px;font-weight:900;color:{rc['text']}'>{avg_r:.2f}</div>"
+            f"</div></div>"
+        )
+
+    if cards_html:
+        st.markdown(f"<div style='margin-top:12px'>{cards_html}</div>", unsafe_allow_html=True)
+
+
 def render_diagnostics(diag):
     if not diag or not diag.get("file_name"):
         return
@@ -372,45 +435,57 @@ def render_diagnostics(diag):
 data_loaded = ("master_df" in st.session_state and st.session_state.master_df is not None
                and not st.session_state.master_df.empty)
 
+zomato_df, zomato_diags = None, []
+swiggy_df, swiggy_diags = None, []
+
 with st.expander("📁  **Data sources** — upload Zomato & Swiggy files",
                  expanded=not data_loaded):
 
-    upload_cols = st.columns(2)
-    with upload_cols[0]:
-        st.markdown("##### 🔴 Zomato")
+    z_tab, s_tab = st.tabs(["🔴  Zomato", "🟠  Swiggy"])
+
+    with z_tab:
+        st.markdown(
+            "<div style='font-size:12px;color:#6B7280;margin-bottom:8px'>"
+            "Upload one or more Zomato export files (xlsx, csv, zip). "
+            "Duplicate order IDs across files are automatically de-duplicated.</div>",
+            unsafe_allow_html=True,
+        )
         z_files = st.file_uploader(
-            "Upload one or many Zomato files",
+            "Upload Zomato files",
             type=["xlsx", "xlsm", "xls", "csv", "zip"],
             accept_multiple_files=True,
             key="z",
             label_visibility="collapsed",
         )
-    with upload_cols[1]:
-        st.markdown("##### 🟠 Swiggy")
+        if z_files:
+            with st.expander("⚙️ Sheet & column mapping", expanded=False):
+                zomato_df, zomato_diags = load_platform_files(z_files, "Zomato")
+            if zomato_df is not None and not zomato_df.empty:
+                render_file_rating_summary(zomato_df, zomato_diags)
+            elif not zomato_df is None:
+                render_file_rating_summary(None, zomato_diags)
+
+    with s_tab:
+        st.markdown(
+            "<div style='font-size:12px;color:#6B7280;margin-bottom:8px'>"
+            "Upload one or more Swiggy export files (xlsx, csv, zip). "
+            "Duplicate order IDs across files are automatically de-duplicated.</div>",
+            unsafe_allow_html=True,
+        )
         s_files = st.file_uploader(
-            "Upload one or many Swiggy files",
+            "Upload Swiggy files",
             type=["xlsx", "xlsm", "xls", "csv", "zip"],
             accept_multiple_files=True,
             key="s",
             label_visibility="collapsed",
         )
-
-    if z_files or s_files:
-        st.divider()
-        st.markdown("##### File mappings")
-
-zomato_df, zomato_diags = None, []
-swiggy_df, swiggy_diags = None, []
-
-if z_files:
-    with st.expander("🔴 Zomato — sheet & column mapping",
-                     expanded=False):
-        zomato_df, zomato_diags = load_platform_files(z_files, "Zomato")
-
-if s_files:
-    with st.expander("🟠 Swiggy — sheet & column mapping",
-                     expanded=False):
-        swiggy_df, swiggy_diags = load_platform_files(s_files, "Swiggy")
+        if s_files:
+            with st.expander("⚙️ Sheet & column mapping", expanded=False):
+                swiggy_df, swiggy_diags = load_platform_files(s_files, "Swiggy")
+            if swiggy_df is not None and not swiggy_df.empty:
+                render_file_rating_summary(swiggy_df, swiggy_diags)
+            elif not swiggy_df is None:
+                render_file_rating_summary(None, swiggy_diags)
 
 master = combine(zomato_df, swiggy_df)
 st.session_state.master_df = master
