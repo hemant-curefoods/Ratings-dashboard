@@ -1,0 +1,9 @@
+node_modules
+dist
+.git
+.gitignore
+credentials
+README.md
+website_chat_handover.md
+PROJECT_SUMMARY.md
+verify_eatfit_up.js

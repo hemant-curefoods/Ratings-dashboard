@@ -41,3 +41,12 @@ sample_data/
 
 # Logs
 *.log
+
+# Secrets — never commit these
+gmail_token.json
+gmail_credentials.json
+**/gmail_token.json
+**/gmail_credentials.json
+**/token.json
+credentials/
+*.env

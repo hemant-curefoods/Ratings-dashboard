@@ -1,0 +1,61 @@
+name: Zomato Timings Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      store_id:
+        required: false
+      location_id:
+        required: false
+      zomato_id:
+        required: true
+      store_name:
+        required: false
+      opening_time:
+        required: false
+      closing_time:
+        required: false
+      opening_time_2:
+        required: false
+      closing_time_2:
+        required: false
+      slot:
+        required: false
+
+jobs:
+  update-zomato:
+    runs-on: ubuntu-latest
+    
+    # This forces GitHub to queue rapid clicks one-by-one so Zomato doesn't log you out!
+    concurrency:
+      group: zomato-timing-queue
+      cancel-in-progress: false
+      
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install requests playwright python-dotenv
+          playwright install chromium
+
+      - name: Run Zomato Update Script
+        working-directory: public/zomato_store_time
+        env:
+          ZOMATO_COOKIES_JSON: ${{ secrets.ZOMATO_COOKIES_JSON }}
+          ZOMATO_EMAIL: ${{ secrets.ZOMATO_EMAIL }}
+          ZOMATO_PASSWORD: ${{ secrets.ZOMATO_PASSWORD }}
+          ZOMATO_ID: ${{ github.event.inputs.zomato_id }}
+          OPENING_TIME: ${{ github.event.inputs.opening_time }}
+          CLOSING_TIME: ${{ github.event.inputs.closing_time }}
+          OPENING_TIME_2: ${{ github.event.inputs.opening_time_2 }}
+          CLOSING_TIME_2: ${{ github.event.inputs.closing_time_2 }}
+          ZOMATO_SLOT: ${{ github.event.inputs.slot }}
+          STORE_NAME: ${{ github.event.inputs.store_name }}
+        run: python website_update.py

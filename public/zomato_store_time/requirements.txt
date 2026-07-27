@@ -1,0 +1,6 @@
+gspread>=6.2.0
+google-auth>=2.53.0
+python-dotenv>=1.2.0
+requests>=2.32.0
+playwright>=1.60.0
+oauth2client>=4.1.3
