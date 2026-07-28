@@ -1,9 +1,0 @@
-- [x] Refactored massive `InsightResult.jsx` into highly modular sub-components.
-- [x] Created `src/features/ratings/insights/` folder.
-- [x] Created `DownloadDialog.jsx` (handles file exports: Excel, CSV, PDF, HTML).
-- [x] Created `DefaultDashboard.jsx` (handles tab 0 - overall company overview).
-- [x] Created `BrandDashboard.jsx` (handles tab 1 - brand statistics summary).
-- [x] Created `LocationMatrixAndSummary.jsx` (handles tabs 2, 3, 4 - zone, city, and area matrix pages).
-- [x] Created `CommentsInsight.jsx` (handles tab 21 - raw reviews comments feed).
-- [x] Updated `InsightResult.jsx` to act as a lightweight clean router layer.
-- [x] Verified full build is clean.
