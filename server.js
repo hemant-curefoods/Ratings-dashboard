@@ -6,6 +6,8 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
 import toggleRoutes from "./server/toggle/toggle.routes.js";
 import timingRoutes from "./server/timing/timing.routes.js";
 import reviewsRouter from "./server/reviews/reviewsRouter.js";
@@ -53,6 +55,13 @@ app.use("/api/insights", insightsRoutes);
 
 // New route for fetching filter dropdown options
 app.get("/api/filters", handleFilterRequest);
+
+// ─── SERVE FRONTEND (Vite build) ─────────────────────────
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+app.use(express.static(path.join(__dirname, "dist")));
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "dist", "index.html"));
+});
 
 // ─── START SERVER ─────────────────────────────────────────────
 const PORT = process.env.PORT || 3001;
