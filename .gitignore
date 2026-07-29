@@ -5,7 +5,7 @@ __pycache__/
 *.so
 .Python
 build/
-dist/
+# dist/ — committed because production server has Node 16 (can't run vite build)
 *.egg-info/
 .pytest_cache/
 

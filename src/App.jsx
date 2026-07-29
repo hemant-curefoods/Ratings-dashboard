@@ -7,7 +7,7 @@ import TimingPage from "./features/timing/TimingPage";
 import ReviewsPage from "./features/reviews/ReviewsPage";
 import RouteBackfillingPage from "./features/backfilling/RouteBackfillingPage";
 import RatingsPage from "./features/ratings/RatingsPage";
-import { SettingsPage, ThemePage, LogoutPage } from "./features/static/StaticPages";
+import { SettingsPage, ThemePage } from "./features/static/StaticPages";
 import LoginPage from "./features/auth/LoginPage";
 import { fetchFilters } from "./features/ratings/ratingsApi";
 
