@@ -2,9 +2,8 @@ import { Groq } from 'groq-sdk';
 import { BRAND_VOICE } from './config.js';
 import 'dotenv/config';
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-
 export async function generateGroqReply(review) {
+  const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
   const brandVoice = BRAND_VOICE[review.brand] || "You are a polite restaurant manager.";
   
   const prompt = `You are a restaurant manager at ${review.store_name}.
