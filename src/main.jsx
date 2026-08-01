@@ -31,7 +31,7 @@ window.fetch = async (...args) => {
 };
 
 const hostname = window.location.hostname;
-if (hostname !== 'cfi-website-five.vercel.app' && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+if (hostname !== 'ratings-dashboard.eatfit.in' && hostname !== 'cfi-website-five.vercel.app' && hostname !== 'localhost' && hostname !== '127.0.0.1') {
   document.body.innerHTML = `
     <div style="display:flex; justify-content:center; align-items:center; height:100vh; font-family:sans-serif; flex-direction:column; background:#f4f4f5; text-align:center; padding:20px;">
       <h1 style="color:#e11d48; margin-bottom:10px;">Access Blocked</h1>
