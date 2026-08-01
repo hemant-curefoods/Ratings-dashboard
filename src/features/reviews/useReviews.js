@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-const API_BASE = import.meta.env.VITE_BACKEND_URL || (import.meta.env.PROD ? "" : "http://localhost:3001");
+const API_BASE = import.meta.env.VITE_BACKEND_URL || "";
 
 export default function useReviews() {
   const [reviews, setReviews] = useState([]);

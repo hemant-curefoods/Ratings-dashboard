@@ -1,6 +1,6 @@
 import { C, FONT, pillButton } from "../../theme";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? "" : "http://localhost:3001");
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
 async function post(path, body) {
   return fetch(`${API_BASE}${path}`, {

@@ -1,5 +1,5 @@
 import { getAuthHeaders, handleApiError } from "../../api";
-const API_BASE = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? "" : "http://localhost:3001");
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
 export async function fetchInsight(insightId, filters) {
   const res = await fetch(`${API_BASE}/api/insights/${insightId}`, {

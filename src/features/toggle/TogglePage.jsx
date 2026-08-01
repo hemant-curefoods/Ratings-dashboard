@@ -8,7 +8,7 @@ import BulkProgressIsland from "./BulkProgressIsland";
 import AuditModal from "./AuditModal";
 import ManageStoresModal from "./ManageStoresModal";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? "" : "http://localhost:3001");
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
 async function post(path, body) {
   const res = await fetch(`${API_BASE}${path}`, {

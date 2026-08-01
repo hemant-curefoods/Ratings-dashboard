@@ -3,7 +3,7 @@ import { C, FONT, pillButton } from "../../theme";
 import SearchableSelect from "./SearchableSelect";
 import { getAuthHeaders } from "../../api";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? "" : "http://localhost:3001");
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
 export default function ManageStoresModal({ onClose, refreshStores, stores = [] }) {
   const [loading, setLoading] = useState(false);

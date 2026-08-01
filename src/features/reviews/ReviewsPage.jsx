@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { C, FONT, cardStyle, pillButton, spinnerStyle } from "../../theme";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? "" : "http://localhost:3001");
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
 const STAR_COLOR = { 5: "#15803d", 4: "#2563eb", 3: "#b45309", 2: "#dc2626", 1: "#7f1d1d" };
 

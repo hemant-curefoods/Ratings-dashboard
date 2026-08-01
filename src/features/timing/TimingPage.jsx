@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { C, FONT, cardStyle, pillButton, spinnerStyle } from "../../theme";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? "" : "http://localhost:3001");
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
 export default function TimingPage() {
   const [form, setForm] = useState({
