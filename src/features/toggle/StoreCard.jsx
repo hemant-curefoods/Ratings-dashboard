@@ -7,10 +7,13 @@ const BRAND_COLOR = {
   "EatFit": "#15803d",
 };
 
-export default function StoreCard({ store, onToggle, isBulking }) {
+export default function StoreCard({ store, onToggle, isBulking, dbState }) {
   const [loading, setLoading] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const [mockOrders, setMockOrders] = useState(dbState?.active_orders || 0);
+  
   const isOnline = store.status === "online";
+  const desiredState = dbState?.desired_state || (isOnline ? "ONLINE" : "OFFLINE");
   const busy = loading || isBulking;
 
   const handleClick = async () => {
@@ -46,16 +49,33 @@ export default function StoreCard({ store, onToggle, isBulking }) {
       <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
         {/* Brand badge + status */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <span style={{ fontSize: 10, fontWeight: 800, color: brandColor, textTransform: "uppercase", letterSpacing: 0.8, backgroundColor: `${brandColor}12`, borderRadius: 6, padding: "3px 7px" }}>
-            {store.brand}
-          </span>
-          <span style={{ fontSize: 10, fontWeight: 800, color: isOnline ? "#15803d" : "#dc2626", border: `1px solid ${isOnline ? "#15803d" : "#dc2626"}33`, borderRadius: 20, padding: "3px 9px" }}>
-            {isOnline ? "ONLINE" : "OFFLINE"}
-          </span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={{ fontSize: 10, fontWeight: 800, color: brandColor, textTransform: "uppercase", letterSpacing: 0.8, backgroundColor: `${brandColor}12`, borderRadius: 6, padding: "3px 7px", alignSelf: "flex-start" }}>
+              {store.brand}
+            </span>
+            <span style={{ 
+              fontSize: 9, fontWeight: 800, 
+              color: mockOrders > 8 ? "#dc2626" : "#15803d", 
+              backgroundColor: mockOrders > 8 ? "#fee2e2" : "#dcfce7",
+              borderRadius: 4, padding: "2px 6px", alignSelf: "flex-start"
+            }}>
+              Orders: {mockOrders > 8 ? "8+" : mockOrders}
+            </span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+            <span style={{ fontSize: 10, fontWeight: 800, color: isOnline ? "#15803d" : "#dc2626", border: `1px solid ${isOnline ? "#15803d" : "#dc2626"}33`, borderRadius: 20, padding: "3px 9px" }}>
+              {isOnline ? "ONLINE" : "OFFLINE"}
+            </span>
+            {desiredState && desiredState.toLowerCase() !== (isOnline ? "online" : "offline") && (
+              <span style={{ fontSize: 9, fontWeight: 700, color: "#d97706", backgroundColor: "#fef3c7", padding: "2px 6px", borderRadius: 4 }}>
+                Target: {desiredState}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Store name */}
-        <div>
+        <div style={{ flex: 1 }}>
           <div style={{ fontSize: 13, fontWeight: 800, color: C.primary, lineHeight: 1.3 }}>{store.name}</div>
           <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>
             {[store.city, store.zone].filter(Boolean).join(" · ")}

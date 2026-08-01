@@ -85,3 +85,15 @@ code {
   background: rgba(19, 38, 100, 0.4);
 }
 
+/* Remove blue highlight on date inputs */
+input[type="date"]::-webkit-datetime-edit-day-field:focus,
+input[type="date"]::-webkit-datetime-edit-month-field:focus,
+input[type="date"]::-webkit-datetime-edit-year-field:focus {
+  background-color: transparent !important;
+  color: inherit !important;
+  outline: none !important;
+}
+
+input[type="date"]::selection {
+  background: transparent !important;
+}

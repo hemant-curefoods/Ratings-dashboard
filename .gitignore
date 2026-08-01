@@ -1,55 +1,27 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-# dist/ — committed because production server has Node 16 (can't run vite build)
-*.egg-info/
-.pytest_cache/
+# Node modules
+node_modules/
 
-# Virtual environments
-venv/
-env/
-.venv/
+# Environment variables (API Keys)
 .env
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
+# Google & Zomato Credentials/Tokens
+*credentials*.json
+*token*.json
+cookies.json
+zomato_session.json
 
-# OS
-.DS_Store
-Thumbs.db
-
-# Data files — never commit raw ratings
-*.xlsx
-*.xls
-*.xlsm
-*.csv
-*.tsv
-*.zip
-uploads/
-data/
-sample_data/
-
-# Logs
-*.log
-
-# Secrets — never commit these
-gmail_token.json
-gmail_credentials.json
-**/gmail_token.json
-**/gmail_credentials.json
-**/token.json
-credentials/
-*.pem
-*.env
-*.tar.gz
-*.json.bak
+# Downloads and generated reports
 downloads/
-*.code-workspace
-*.code-search
+*.xlsx
+*.csv
+dropped_rows_report.json
+
+# Mac OS generated files
+.DS_Store
+.gstack/
+.env
+CFI_website_project.zip
+update_server.tar.gz
+auth_update.tar.gz
+credentials/
+server/reviews/token.json

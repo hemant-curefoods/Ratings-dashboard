@@ -1,11 +1,13 @@
+import { getAuthHeaders, handleApiError } from "../../api";
 const API_BASE = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? "" : "http://localhost:3001");
 
 export async function fetchInsight(insightId, filters) {
   const res = await fetch(`${API_BASE}/api/insights/${insightId}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getAuthHeaders(),
     body: JSON.stringify(filters || {}),
   });
+  if (handleApiError(res)) throw new Error("Session expired. Redirecting to login...");
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || "Failed to fetch insight");
@@ -14,7 +16,8 @@ export async function fetchInsight(insightId, filters) {
 }
 
 export async function fetchFilters() {
-  const res = await fetch(`${API_BASE}/api/filters`);
+  const res = await fetch(`${API_BASE}/api/filters`, { headers: getAuthHeaders() });
+  if (handleApiError(res)) throw new Error("Session expired");
   if (!res.ok) throw new Error("Failed to fetch filters");
   return res.json();
 }
@@ -55,7 +58,7 @@ export const fetchItemCompanyGap = make(32);
 export async function sendReportEmail(payload) {
   const res = await fetch(`${API_BASE}/api/insights/send-email`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getAuthHeaders(),
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error("Failed to send email");

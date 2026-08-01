@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getAuthHeaders } from "../../api";
 import { C, FONT } from "../../theme";
 import ActivityLog from "./ActivityLog";
 
@@ -7,7 +8,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? ""
 const TAB = ["Health", "Recent", "Problems"];
 
 async function post(path, body) {
-  return fetch(`${API_BASE}${path}`, {
+  return fetch(`${API_BASE}${path}`, { headers: getAuthHeaders(), 
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

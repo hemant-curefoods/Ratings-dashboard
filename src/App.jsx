@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Sidebar, { NAV_ITEMS } from "./Sidebar";
+import Sidebar, { NAV_ITEMS, ROLE_PERMISSIONS } from "./Sidebar";
 import GlobalFilters from "./GlobalFilters";
 import { C, FONT } from "./theme";
 import TogglePage from "./features/toggle/TogglePage";
@@ -7,8 +7,10 @@ import TimingPage from "./features/timing/TimingPage";
 import ReviewsPage from "./features/reviews/ReviewsPage";
 import RouteBackfillingPage from "./features/backfilling/RouteBackfillingPage";
 import RatingsPage from "./features/ratings/RatingsPage";
+import OpsMatrixPage from "./features/ops_matrix/OpsMatrixPage";
 import { SettingsPage, ThemePage } from "./features/static/StaticPages";
 import LoginPage from "./features/auth/LoginPage";
+import ChatbotWidget from "./features/chat/ChatbotWidget";
 import { fetchFilters } from "./features/ratings/ratingsApi";
 
 const iso = (offsetDays) => {
@@ -34,13 +36,34 @@ export default function App() {
     return saved ? JSON.parse(saved) : null;
   });
 
-  const [activeTab, setActiveTab] = useState("ratings");
+  const [activeTab, setActiveTab] = useState(() => {
+    const savedUser = localStorage.getItem("user");
+    let initialTab = "toggle";
+    if (savedUser) {
+      const parsed = JSON.parse(savedUser);
+      const allowed = ROLE_PERMISSIONS[parsed.role] || ["ratings"];
+      initialTab = allowed[0];
+    }
+    
+    const path = window.location.pathname.replace("/", "");
+    if (path === "CFI-operations-dashboard") return "ops_matrix";
+    if (path && NAV_ITEMS.some(n => n.key === path)) return path;
+    
+    return initialTab;
+  });
   const [collapsed, setCollapsed] = useState(false);
   const [globalFilters, setGlobalFilters] = useState(DEFAULT_FILTERS);
   const [masterData, setMasterData] = useState([]);
 
   useEffect(() => {
     if (!user) return;
+    
+    // Ensure activeTab is valid for the logged-in user's role
+    const allowed = ROLE_PERMISSIONS[user.role] || ["ratings"];
+    if (!allowed.includes(activeTab)) {
+      setActiveTab(allowed[0]);
+    }
+
     let alive = true;
     fetchFilters()
       .then((res) => {
@@ -50,7 +73,7 @@ export default function App() {
     return () => {
       alive = false;
     };
-  }, [user]);
+  }, [user, activeTab]);
 
   if (!user) {
     return <LoginPage onLogin={setUser} />;
@@ -72,13 +95,18 @@ export default function App() {
           if (tab === "logout") {
             localStorage.removeItem("token");
             localStorage.removeItem("user");
-            setUser(null);
+            localStorage.removeItem("activeTab");
+            window.history.pushState({}, "", "/");
+            window.location.reload();
           } else {
             setActiveTab(tab);
+            localStorage.setItem("activeTab", tab);
+            window.history.pushState({}, "", `/${tab === "ops_matrix" ? "CFI-operations-dashboard" : tab}`);
           }
         }}
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed(true)}
+        role={user.role}
       />
 
       <main style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", position: "relative" }}>
@@ -122,7 +150,7 @@ export default function App() {
             <h1 style={{ fontSize: 24, fontWeight: 800, color: C.primary, margin: 0, letterSpacing: -0.3 }}>{title}</h1>
             <div style={{ fontSize: 13, color: C.muted, marginTop: 3 }}>{subtitle}</div>
           </div>
-          {activeTab !== "toggle" && activeTab !== "settings" && (
+          {activeTab !== "toggle" && activeTab !== "settings" && activeTab !== "ops_matrix" && (
             <GlobalFilters
               filters={globalFilters}
               masterData={masterData}
@@ -133,7 +161,7 @@ export default function App() {
         </header>
 
         <div style={{ flex: 1, overflowY: "auto", padding: "22px 28px 60px" }}>
-          {activeTab === "toggle" && <TogglePage />}
+          {activeTab === "toggle" && <TogglePage userRole={user.role} />}
           {activeTab === "timing" && <TimingPage globalFilters={globalFilters} />}
           {activeTab === "reviews" && <ReviewsPage globalFilters={globalFilters} />}
           {activeTab === "backfilling" && <RouteBackfillingPage globalFilters={globalFilters} />}
@@ -145,10 +173,19 @@ export default function App() {
               onUpdateFilters={updateFilters}
             />
           )}
+          
+          {/* Keep Ops Matrix mounted always so data loads in background instantly */}
+          <div style={{ display: activeTab === "ops_matrix" ? "block" : "none" }}>
+            <OpsMatrixPage />
+          </div>
+
           {activeTab === "settings" && <SettingsPage />}
           {activeTab === "theme" && <ThemePage />}
         </div>
       </main>
+
+      {/* Global AI Chatbot Widget */}
+      <ChatbotWidget userRole={user.role} />
     </div>
   );
 }

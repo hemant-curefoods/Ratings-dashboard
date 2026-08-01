@@ -1,4 +1,5 @@
 import express from "express";
+import { Groq } from "groq-sdk";
 import "dotenv/config";
 import path from "path";
 import fs from "fs";
@@ -6,15 +7,7 @@ import { pool } from "./db.js";
 
 const router = express.Router();
 
-let _groq = null;
-async function getGroq() {
-  if (!_groq) {
-    const { Groq } = await import("groq-sdk");
-    _groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-  }
-  return _groq;
-}
-
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const TABLE = "order_reviews";
 
 // Simple local cache to store outlet_master rows so we can join them without complex SQL foreign keys
@@ -290,7 +283,6 @@ async function fetchLowRatingComments(filters) {
 }
 
 async function callGroq(prompt) {
-  const groq = await getGroq();
   const completion = await groq.chat.completions.create({
     messages: [{ role: "user", content: prompt }],
     model: "llama-3.1-8b-instant",

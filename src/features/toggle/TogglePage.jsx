@@ -1,44 +1,86 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { C, FONT, cardStyle, pillButton } from "../../theme";
-import { STORES } from "./stores";
+import { getAuthHeaders, handleApiError } from "../../api";
 import StoreCard from "./StoreCard";
 import ToggleSidebar from "./ToggleSidebar";
+import MultiSearchableSelect from "./MultiSearchableSelect";
 import BulkProgressIsland from "./BulkProgressIsland";
 import AuditModal from "./AuditModal";
+import ManageStoresModal from "./ManageStoresModal";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? "" : "http://localhost:3001");
 
 async function post(path, body) {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { ...getAuthHeaders() },
     body: JSON.stringify(body),
   });
+  if (handleApiError(res)) return { success: false, error: "Session expired" };
   return res.json();
 }
 
 const selectStyle = { padding: "7px 12px", borderRadius: 10, border: `1.5px solid ${C.primary}`, color: C.primary, fontSize: 12, fontWeight: 700, fontFamily: FONT, cursor: "pointer", outline: "none" };
 
-export default function TogglePage() {
-  const [stores, setStores] = useState(STORES);
-  const [brand, setBrand] = useState("All");
-  const [zone, setZone] = useState("All");
-  const [city, setCity] = useState("All");
-  const [area, setArea] = useState("All");
+export default function TogglePage({ userRole }) {
+  const [stores, setStores] = useState([]);
+  
+  // Pending filters (multi-select)
+  const [brand, setBrand] = useState([]);
+  const [zone, setZone] = useState([]);
+  const [city, setCity] = useState([]);
+  const [area, setArea] = useState([]);
   const [search, setSearch] = useState("");
+  
+  // Active filters (applied when "Apply" is clicked)
+  const [activeFilters, setActiveFilters] = useState({ brand: [], zone: [], city: [], area: [], search: "" });
+  
   const [statusFilter, setStatusFilter] = useState("Total");
   const [sidebarData, setSidebarData] = useState(null);
   const [isBulking, setIsBulking] = useState(false);
   const [showAudit, setShowAudit] = useState(false);
+  const [showManage, setShowManage] = useState(false);
+  const [storeStates, setStoreStates] = useState({});
 
-  const handleBrandChange = (b) => { setBrand(b); setZone("All"); setCity("All"); setArea("All"); };
-  const handleZoneChange = (z) => { setZone(z); setCity("All"); setArea("All"); };
-  const handleCityChange = (c) => { setCity(c); setArea("All"); };
+  const canManageStores = ["admin", "control_tower", "clock_tower"].includes(String(userRole).toLowerCase().replace(/ /g, '_'));
+
+  const handleBrandChange = (b) => { setBrand(b); setZone([]); setCity([]); setArea([]); };
+  const handleZoneChange = (z) => { setZone(z); setCity([]); setArea([]); };
+  const handleCityChange = (c) => { setCity(c); setArea([]); };
+
+  const handleApply = () => {
+    setActiveFilters({ brand, zone, city, area, search });
+  };
+
+  const handleClear = () => {
+    setBrand([]);
+    setZone([]);
+    setCity([]);
+    setArea([]);
+    setSearch("");
+    setActiveFilters({ brand: [], zone: [], city: [], area: [], search: "" });
+  };
 
   const fetchSidebar = useCallback(() => {
-    fetch(`${API_BASE}/api/toggle/sidebar-data`)
-      .then((r) => r.json())
+    fetch(`${API_BASE}/api/toggle/stores`, { headers: getAuthHeaders() })
+      .then((r) => { handleApiError(r); return r.json(); })
+      .then((d) => { if (d.data) setStores(d.data); })
+      .catch(() => {});
+
+    fetch(`${API_BASE}/api/toggle/sidebar-data`, { headers: getAuthHeaders() })
+      .then((r) => { handleApiError(r); return r.json(); })
       .then((d) => setSidebarData(d.data || null))
+      .catch(() => {});
+      
+    fetch(`${API_BASE}/api/toggle/store-states`, { headers: getAuthHeaders() })
+      .then((r) => { handleApiError(r); return r.json(); })
+      .then((d) => {
+        if (d.data) {
+           const map = {};
+           d.data.forEach(st => map[st.location_id] = st);
+           setStoreStates(map);
+        }
+      })
       .catch(() => {});
   }, []);
 
@@ -48,47 +90,47 @@ export default function TogglePage() {
     return () => clearInterval(timer);
   }, [fetchSidebar]);
 
-  const brandsList = useMemo(() => ["All", ...new Set(stores.map(s => s.brand).filter(Boolean))].sort(), [stores]);
+  const brandsList = useMemo(() => [...new Set(stores.map(s => s.brand).filter(Boolean))].sort(), [stores]);
   
   const zonesList = useMemo(() => {
-    const list = stores.filter(s => brand === "All" || s.brand === brand)
+    const list = stores.filter(s => brand.length === 0 || brand.includes(s.brand))
                        .map(s => s.zone)
                        .filter(Boolean);
-    return ["All", ...new Set(list)].sort();
+    return [...new Set(list)].sort();
   }, [stores, brand]);
 
   const citiesList = useMemo(() => {
     const list = stores.filter(s => 
-                          (brand === "All" || s.brand === brand) &&
-                          (zone === "All" || s.zone === zone)
+                          (brand.length === 0 || brand.includes(s.brand)) &&
+                          (zone.length === 0 || zone.includes(s.zone))
                        )
                        .map(s => s.city)
                        .filter(Boolean);
-    return ["All", ...new Set(list)].sort();
+    return [...new Set(list)].sort();
   }, [stores, brand, zone]);
 
   const areasList = useMemo(() => {
     const list = stores.filter(s => 
-                          (brand === "All" || s.brand === brand) &&
-                          (zone === "All" || s.zone === zone) &&
-                          (city === "All" || s.city === city)
+                          (brand.length === 0 || brand.includes(s.brand)) &&
+                          (zone.length === 0 || zone.includes(s.zone)) &&
+                          (city.length === 0 || city.includes(s.city))
                        )
                        .map(s => s.name)
                        .filter(Boolean);
-    return ["All", ...new Set(list)].sort();
+    return [...new Set(list)].sort();
   }, [stores, brand, zone, city]);
 
   const baseFiltered = useMemo(() => {
-    const q = search.toLowerCase();
+    const q = activeFilters.search.toLowerCase();
     return stores.filter((s) => {
-      if (brand !== "All" && s.brand !== brand) return false;
-      if (zone !== "All" && s.zone !== zone) return false;
-      if (city !== "All" && s.city !== city) return false;
-      if (area !== "All" && s.name !== area) return false;
+      if (activeFilters.brand.length > 0 && !activeFilters.brand.includes(s.brand)) return false;
+      if (activeFilters.zone.length > 0 && !activeFilters.zone.includes(s.zone)) return false;
+      if (activeFilters.city.length > 0 && !activeFilters.city.includes(s.city)) return false;
+      if (activeFilters.area.length > 0 && !activeFilters.area.includes(s.name)) return false;
       if (q && !s.name.toLowerCase().includes(q) && !s.location_id.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [stores, brand, zone, city, area, search]);
+  }, [stores, activeFilters]);
 
   const onlineCount = baseFiltered.filter((s) => s.status === "online").length;
   const offlineCount = baseFiltered.length - onlineCount;
@@ -161,45 +203,64 @@ export default function TogglePage() {
       {/* Filters + actions */}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
         
-        <select value={brand} onChange={(e) => handleBrandChange(e.target.value)} style={selectStyle}>
-          {brandsList.map((b) => <option key={b} value={b}>{b === "All" ? "All Brands" : b}</option>)}
-        </select>
-        
-        <select value={zone} onChange={(e) => handleZoneChange(e.target.value)} style={selectStyle}>
-          {zonesList.map((z) => <option key={z} value={z}>{z === "All" ? "All Zones" : z}</option>)}
-        </select>
-
-        <select value={city} onChange={(e) => handleCityChange(e.target.value)} style={selectStyle}>
-          {citiesList.map((c) => <option key={c} value={c}>{c === "All" ? "All Cities" : c}</option>)}
-        </select>
-        
-        <select value={area} onChange={(e) => setArea(e.target.value)} style={selectStyle}>
-          {areasList.map((a) => <option key={a} value={a}>{a === "All" ? "All Areas" : a}</option>)}
-        </select>
+        <MultiSearchableSelect options={brandsList} selectedValues={brand} onChange={handleBrandChange} placeholder="Brand" />
+        <MultiSearchableSelect options={zonesList} selectedValues={zone} onChange={handleZoneChange} placeholder="Zone" />
+        <MultiSearchableSelect options={citiesList} selectedValues={city} onChange={handleCityChange} placeholder="City" />
+        <MultiSearchableSelect options={areasList} selectedValues={area} onChange={setArea} placeholder="Area" />
 
         {/* Search */}
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search stores…"
-          style={{ padding: "7px 12px", borderRadius: 10, border: `1.5px solid ${C.border}`, fontSize: 12, color: C.text, fontFamily: FONT, outline: "none", minWidth: 180 }}
+          placeholder="Search store ID or name…"
+          style={{ padding: "7px 12px", borderRadius: 10, border: `1.5px solid ${C.border}`, fontSize: 12, color: C.text, fontFamily: FONT, outline: "none", minWidth: 160 }}
         />
 
+        <button
+          onClick={handleApply}
+          style={{ ...pillButton(false), fontSize: 11, padding: "7px 16px", backgroundColor: C.primary, color: "#fff", borderColor: C.primary }}
+        >
+          Apply Filters
+        </button>
+        <button
+          onClick={handleClear}
+          style={{ ...pillButton(false), fontSize: 11, padding: "7px 16px", backgroundColor: "#fff", color: C.muted, borderColor: C.border }}
+        >
+          Clear
+        </button>
+
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          <button
-            style={{ ...pillButton(false), fontSize: 11, padding: "7px 16px", backgroundColor: "#dcfce7", borderColor: "#15803d", color: "#15803d" }}
-            onClick={() => handleBulk("enable")}
-            disabled={isBulking}
-          >
-            Enable Visible
-          </button>
-          <button
-            style={{ ...pillButton(false), fontSize: 11, padding: "7px 16px", backgroundColor: "#fee2e2", borderColor: "#dc3545", color: "#dc3545" }}
-            onClick={() => handleBulk("disable")}
-            disabled={isBulking}
-          >
-            Disable Visible
-          </button>
+          {(() => {
+            const hasCakeZone = filtered.some(s => s.brand === "Cake Zone");
+            return (
+              <>
+                <button
+                  style={{ ...pillButton(false), fontSize: 11, padding: "7px 16px", backgroundColor: "#dcfce7", borderColor: "#15803d", color: "#15803d", opacity: hasCakeZone ? 0.5 : 1 }}
+                  onClick={() => handleBulk("enable")}
+                  disabled={isBulking || hasCakeZone}
+                  title={hasCakeZone ? "Bulk Actions are disabled for Cake Zone" : ""}
+                >
+                  Enable Visible
+                </button>
+                <button
+                  style={{ ...pillButton(false), fontSize: 11, padding: "7px 16px", backgroundColor: "#fee2e2", borderColor: "#dc3545", color: "#dc3545", opacity: hasCakeZone ? 0.5 : 1 }}
+                  onClick={() => handleBulk("disable")}
+                  disabled={isBulking || hasCakeZone}
+                  title={hasCakeZone ? "Bulk Actions are disabled for Cake Zone" : ""}
+                >
+                  Disable Visible
+                </button>
+              </>
+            );
+          })()}
+          {canManageStores && (
+            <button
+              style={{ ...pillButton(false), fontSize: 11, padding: "7px 16px", backgroundColor: "#fff", color: C.primary, borderColor: C.primary }}
+              onClick={() => setShowManage(true)}
+            >
+              Manage Stores
+            </button>
+          )}
           <button
             style={{ ...pillButton(false), fontSize: 11, padding: "7px 16px" }}
             onClick={() => setShowAudit(true)}
@@ -217,7 +278,13 @@ export default function TogglePage() {
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14 }}>
           {filtered.map((store) => (
-            <StoreCard key={store.id} store={store} onToggle={handleToggle} isBulking={isBulking} />
+            <StoreCard 
+              key={store.id} 
+              store={store} 
+              dbState={storeStates[store.location_id]}
+              onToggle={handleToggle} 
+              isBulking={isBulking} 
+            />
           ))}
         </div>
       )}
@@ -225,7 +292,8 @@ export default function TogglePage() {
       {/* Sidebar, bulk island, audit modal */}
       <ToggleSidebar data={sidebarData} fetchData={fetchSidebar} />
       <BulkProgressIsland activeBulkJob={sidebarData?.activeBulkJob} fetchData={fetchSidebar} />
-      {showAudit && <AuditModal onClose={() => setShowAudit(false)} stores={stores} selectedBrand={brand === "All" ? "" : brand} />}
+      {showAudit && <AuditModal onClose={() => setShowAudit(false)} stores={stores} selectedBrands={activeFilters.brand} />}
+      {showManage && <ManageStoresModal onClose={() => setShowManage(false)} refreshStores={fetchSidebar} stores={stores} />}
     </div>
   );
 }

@@ -12,6 +12,7 @@ const ICONS = {
   reviews: <Icon d={<><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></>} />,
   backfill: <Icon d={<><path d="M3 12h6l3 8 3-16 3 8h3" /></>} />,
   ratings: <Icon d={<><path d="M12 3l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.8 6.2 20.9l1.1-6.5L2.6 9.8l6.5-.9z" /></>} />,
+  ops_matrix: <Icon d={<><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18" /><path d="M3 15h18" /><path d="M9 3v18" /><path d="M15 3v18" /></>} />,
   settings: <Icon d={<><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 7 19.4a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 13.6H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 7a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 3V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.6 1.5 2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 21 10a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></>} />,
   theme: <Icon d={<><circle cx="12" cy="12" r="9" /><path d="M12 3v18" /></>} />,
   logout: <Icon d={<><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" /></>} />,
@@ -23,6 +24,7 @@ export const NAV_ITEMS = [
   { key: "reviews", label: "Dine-in Reviews", subtitle: "Dine-in guest feedback stream" },
   { key: "backfilling", label: "Route Backfilling", subtitle: "Rider route gap reconciliation" },
   { key: "ratings", label: "Ratings & Insights", subtitle: "27 analytical insights across the portfolio" },
+  { key: "ops_matrix", label: "Ops Matrix", subtitle: "Operations performance matrix" },
   { key: "settings", label: "Settings", subtitle: "Profile and connected platforms" },
   { key: "theme", label: "System Theme", subtitle: "Appearance configuration" },
 ];
@@ -33,11 +35,21 @@ const ICON_FOR = {
   reviews: "reviews",
   backfilling: "backfill",
   ratings: "ratings",
+  ops_matrix: "ops_matrix",
   settings: "settings",
   theme: "theme",
 };
 
-export default function Sidebar({ active, onNavigate, collapsed, onToggleCollapse }) {
+export const ROLE_PERMISSIONS = {
+  admin: ["toggle", "timing", "reviews", "backfilling", "ratings", "ops_matrix", "settings", "theme"],
+  dark_kitchen: ["ratings", "ops_matrix"],
+  supervisor: ["ratings", "ops_matrix", "reviews", "backfilling"],
+  control_tower: ["toggle"],
+};
+
+export default function Sidebar({ active, onNavigate, collapsed, onToggleCollapse, role }) {
+  const allowedTabs = ROLE_PERMISSIONS[role] || ["ratings"]; // default fallback
+  const visibleNavItems = NAV_ITEMS.filter(item => allowedTabs.includes(item.key));
   return (
     <aside
       style={{
@@ -82,7 +94,7 @@ export default function Sidebar({ active, onNavigate, collapsed, onToggleCollaps
       </div>
 
       <nav style={{ padding: "6px 10px", display: "flex", flexDirection: "column", gap: 4, flex: 1, overflowY: "auto" }}>
-        {NAV_ITEMS.map((item) => {
+        {visibleNavItems.map((item) => {
           const isActive = active === item.key;
           return (
             <button
